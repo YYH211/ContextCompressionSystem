@@ -11,7 +11,7 @@
 
 An intelligent context compression system designed for large language models (LLMs), optimizing token usage while preserving semantic meaning in long-running conversations and complex multi-agent interactions.
 
-[Features](#key-features) • [Quick Start](#quick-start) • [Architecture](#system-architecture) • [Documentation](#documentation) • [Contributing](#contributing)
+[Features](#-key-features) • [Quick Start](#-quick-start) • [Architecture](#-system-architecture) • [Documentation](#-documentation) • [Contributing](#-contributing)
 
 </div>
 
