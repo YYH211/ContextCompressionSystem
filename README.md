@@ -13,6 +13,7 @@ An intelligent context compression system designed for large language models (LL
 
 [Features](#-key-features) • [Quick Start](#-quick-start) • [Architecture](#-system-architecture) • [Documentation](#-documentation) • [Contributing](#-contributing)
 
+As a pre-step for context management of mutil-agent, an automated mutil agent system will be launched later.
 </div>
 
 ## 🌟 Key Features
