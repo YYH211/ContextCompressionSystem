@@ -92,7 +92,9 @@ def get_user_files(user_id: str) -> Dict[str, Path]:
     user_dir = get_user_data_dir(user_id)
     return {
         'context': user_dir / "context.xml",
-        'before_compressed': user_dir / "before_compressed.xml"
+        'before_compressed': user_dir / "before_compressed.xml",
+        'tf_idf_compressed': user_dir / "tf_idf_compressed.xml",
+        'history_compressed': user_dir / "history_compressed.xml"
     }
 
 def initialize_context_file(context_file_path: Path):
@@ -360,7 +362,8 @@ async def compress_context(request: CompressionRequest, user_agent: str = Header
             'max_token': request.max_token,
             'tf_idf_compression_ratio': request.tf_idf_compression_ratio,
             'history_preserve_tokens': request.history_preserve_tokens,
-            'history_compression_ratio': request.history_compression_ratio
+            'history_compression_ratio': request.history_compression_ratio,
+            'user_files': user_files
         }
         
         # Execute compression - pass complete XML file content

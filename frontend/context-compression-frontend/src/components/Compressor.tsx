@@ -451,6 +451,9 @@ const Compressor: React.FC<CompressorProps> = () => {
                       max="10000"
                       placeholder="1000"
                     />
+                    <div className="text-xs text-yellow-200 mt-1">
+                        1000 is for test, please set a larger value for production use
+                    </div>
                   </div>
                   
                   <div className="space-y-3">
@@ -733,7 +736,7 @@ const Compressor: React.FC<CompressorProps> = () => {
               </div>
             )}
             
-            <div className="bg-gray-800 rounded-lg p-6">
+            <div className="bg-gray-800 rounded-lg p-5">
               <h2 className="text-lg font-semibold mb-4 flex items-center">
                 <FileText className="mr-2 h-5 w-5" />
                 Real-Time XML Preview

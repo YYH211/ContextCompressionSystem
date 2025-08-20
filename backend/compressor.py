@@ -1,6 +1,7 @@
 from typing import List, Dict, Any
 import xml.dom.minidom
 import re
+from prompt import Prompt
 try:
     from compress_tf_idf import TextCompressor
 except ImportError as e:
@@ -32,6 +33,7 @@ class ContextCompressor:
         self.model_name = model_name
         self.use_tf_idf = use_tf_idf
         self.use_history_compression = use_history_compression
+        self.prompt = Prompt()
         
         # Initialize OpenAI client (if API key provided)
         if self.api_key and self.api_key.strip():
@@ -92,10 +94,11 @@ class ContextCompressor:
             Compressed content
         """
         original_tokens = self.count_tokens(content)
-        max_tokens = config.get('max_token', 1000)
+        max_tokens = config.get('max_token', 8000)
         target_modules = config.get('target_modules', ['all'])
         use_tf_idf = config.get('use_tf_idf', False)
         use_history_compression = config.get('use_history_compression', False)
+        user_files = config.get('user_files', None)
         
         if original_tokens <= max_tokens:
             return content
@@ -110,13 +113,19 @@ class ContextCompressor:
         if use_tf_idf and self._is_xml_content(content):
             tf_idf_ratio = config.get('tf_idf_compression_ratio', 0.6)
             processed_content = self._compress_text_by_tf_idf(processed_content, target_ratio=tf_idf_ratio)
+            print(f"💾 Overwriting {user_files['tf_idf_compressed']}  with compression result (ratio: {str(tf_idf_ratio*100)}%)")
+            with open(user_files['tf_idf_compressed'], 'w', encoding='utf-8') as f:
+                f.write(processed_content)
         
         # 2. If using history compression (for XML format)
         if use_history_compression and self._is_xml_content(content):
             preserve_tokens = config.get('history_preserve_tokens', 500)
-            history_ratio = config.get('history_compression_ratio', 0.3)
-            history_result = self._compress_sectional_history(processed_content, preserve_tokens, history_ratio)
+            history_compression_ratio = config.get('history_compression_ratio', 0.3)
+            history_result = self._compress_sectional_history(processed_content, preserve_tokens, history_compression_ratio)
             processed_content = history_result.get("compressed_content", processed_content)
+            print(f"💾 Overwriting {user_files['history_compressed']} with compression result (ratio: {str(history_compression_ratio*100)}%)")
+            with open(user_files['history_compressed'], 'w', encoding='utf-8') as f:
+                f.write(processed_content)
         
         # 3. Execute main compression logic - if LLM client exists, use LLM compression; otherwise use simple compression
         if self.client:
@@ -187,7 +196,7 @@ class ContextCompressor:
                 "message": "Original content already meets target size, no compression needed"
             }
         
-        prompt = self._create_compression_prompt(content, target_modules, target_tokens, output_format)
+        prompt = self.prompt._create_compression_prompt(original_tokens, content, target_modules, target_tokens)
         
         try:
             response = self.client.chat.completions.create(
@@ -228,110 +237,7 @@ class ContextCompressor:
                 "message": f"Compression failed: {str(e)}"
             }
 
-    def _create_compression_prompt(self, 
-                                 content: str, 
-                                 target_modules: List[str], 
-                                 target_tokens: int,
-                                 output_format: str) -> str:
-        """Create XML compression prompt"""
-        
-        original_tokens = self.count_tokens(content)
-        compression_ratio = target_tokens / original_tokens if original_tokens > 0 else 1.0
-        
-        prompt = f"""# XML Context Compression Expert
 
-        You are a professional XML context compression expert specialized in processing multi-agent context data and outputting structured XML format.
-
-        ## COMPRESSION REQUIREMENTS
-
-        **Original Token Count**: {original_tokens}
-        **MAXIMUM ALLOWED TOKENS**: {target_tokens} ⚠️ HARD LIMIT ⚠️
-        **Compression Ratio**: {compression_ratio:.2f}
-        **Priority Sections for Compression**: {', '.join(target_modules)}
-
-        ## XML OUTPUT FORMAT
-
-        You MUST output in this exact XML structure:
-
-        ```xml
-        <context>
-            <BACKGROUND>
-                <!-- Knowledge base results compressed, system prompt preserved -->
-                <system_prompt><!-- Keep original system prompt unchanged --></system_prompt>
-                <task><!-- Preserve main task description --></task>
-                <knowledge><!-- Compressed key facts and concepts --></knowledge>
-                <external_knowledge><!-- Essential sources only --></external_knowledge>
-            </BACKGROUND>
-
-            <PLAN>
-                <!-- Plans organized by iteration, remove intermediate processes -->
-                <plan_iteration number="1">
-                    <steps><!-- Key steps only --></steps>
-                </plan_iteration>
-            </PLAN>
-
-            <SUB_APP>
-                <!-- Summarize each agent's key contributions and results -->
-                <agent name="xxxx">
-                    <content><!-- Core findings, what was completed, results obtained --></content>
-                </agent>
-            </SUB_APP>
-
-            <HISTORY>
-                <!-- Compress conversation, extract critical information -->
-                <entry role="system">
-                    <!-- Compressed conversation summary -->
-                </entry>
-            </HISTORY>
-        </context>
-        ```
-
-        ## COMPRESSION STRATEGY BY SECTION
-
-        **BACKGROUND Section** ({"✓" if "BACKGROUND" in target_modules else "○"} Priority):
-        - Extract only core facts and key concepts
-        - Preserve main objectives
-
-        **PLAN Section** ({"✓" if "PLAN" in target_modules else "○"} Priority):
-        - Keep only key steps and final decisions
-        - Remove detailed reasoning and intermediate processes
-
-        **SUB_APP Section** ({"✓" if "SUB_APP" in target_modules else "○"} Priority):
-        - Core findings, search results, key discoveries
-        - Remove verbose API responses and metadata
-
-        **HISTORY Section** ({"✓" if "HISTORY" in target_modules else "○"} Priority):
-        - Extract main conversation topics and key decision points
-        - Convert dialogue to essential entries only
-
-        ## EXECUTION RULES
-
-        1. **Token Priority**: Meeting ≤{target_tokens} tokens is MANDATORY
-        2. **XML Structure**: Must follow exact XML format shown above
-        3. **Compression Order**: Process priority sections more aggressively
-        4. **Information Density**: Be ruthlessly concise while preserving key information
-        5. **Complete Structure**: Include ALL four main sections in XML output
-
-        ## SOURCE CONTENT
-
-        ```
-        {content}
-        ```
-
-        ## EXECUTE XML COMPRESSION
-
-        **CRITICAL**: Your output MUST be ≤{target_tokens} tokens and follow the exact XML structure.
-
-        Process the content:
-        1. **Analyze Sections**: Identify BACKGROUND, PLAN, SUB_APP, HISTORY content
-        2. **Apply Compression**: Focus on priority sections {', '.join(target_modules)}
-        3. **Generate XML**: Output complete <context> structure with all subsections
-        4. **Verify Tokens**: Ensure final output is within token limit
-
-        **Output ONLY the XML structure. No explanations or additional text.**"""
-
-        return prompt
-    
     def _is_xml_content(self, content: str) -> bool:
         """Check if content is XML format"""
         content_stripped = content.strip()
@@ -569,7 +475,7 @@ class ContextCompressor:
         )
         
         if compression_result.get("success", True):
-            # 解析压缩后的 JSON 并重建 XML
+            # Parse compressed JSON and reconstruct XML
             compressed_history_str = compression_result["compressed_content"]
             
             try:
@@ -579,7 +485,7 @@ class ContextCompressor:
             except json.JSONDecodeError:
                 compressed_history_array = history_array
             
-            # 重建 HISTORY 部分
+            # Rebuilding the HISTORY section
             new_history_entries = []
             for item in compressed_history_array:
                 role = item.get('role', 'system')
@@ -588,7 +494,7 @@ class ContextCompressor:
             
             new_history_section = f"<HISTORY>\n{chr(10).join(new_history_entries)}\n    </HISTORY>"
             
-            # 插入压缩后的历史部分
+            # Insert compressed history
             final_xml = xml_without_history.replace('</context>', f"    {new_history_section}\n</context>")
             
             compression_result["compressed_content"] = final_xml
@@ -669,13 +575,15 @@ class ContextCompressor:
         items_to_compress = data[:final_split_index]
         items_to_preserve = data[final_split_index:]
         
-        print(f"🔍 Split info: Total={total_items}, Estimated split={tentative_split_index}, Final split={final_split_index}")
+        print(f"🔍 Split info: Total items={total_items}, Estimated split index={tentative_split_index}, Final split index={final_split_index}")
         print(f"📦 Items to compress={len(items_to_compress)}, Items to preserve={len(items_to_preserve)}")
         
         # Verify first preserved item is a user message
         if items_to_preserve and isinstance(items_to_preserve[0], dict):
             first_preserved_role = items_to_preserve[0].get('role', 'unknown')
+            first_preserved_message = items_to_preserve[0].get('message', 'unknown')
             print(f"👤 First preserved message role: {first_preserved_role}")
+            print(f"👤 First preserved message: {first_preserved_message}")
         
         if not items_to_compress:
             return {
@@ -699,7 +607,8 @@ class ContextCompressor:
         else:
             # Use LLM compression
             try:
-                prompt = self._create_sectional_compression_prompt(content_to_compress, target_tokens)
+                content_to_compress_tokens = self.count_tokens(content_to_compress)
+                prompt = self.prompt._create_history_compression_prompt(content_to_compress_tokens, content_to_compress, target_tokens)
                 
                 response = self.client.chat.completions.create(
                     model=self.model_name,
@@ -738,48 +647,9 @@ class ContextCompressor:
             "message": f"Section compression completed: {original_tokens} → {final_tokens} tokens"
         }
     
-    def _create_sectional_compression_prompt(self, content_to_compress: str, target_tokens: int) -> str:
-        """Create sectional compression prompt"""
-        original_tokens = self.count_tokens(content_to_compress)
-        compression_ratio = target_tokens / original_tokens if original_tokens > 0 else 1.0
-        
-        prompt = f"""# Sectional Dialogue History Compression Expert
-
-        You are a compression expert specialized in processing sectional dialogue history. Your task is to compress lengthy dialogue history into concise key point summaries.
-
-        ## Compression Requirements
-
-        **Original Token Count**: {original_tokens}
-        **Target Token Count**: {target_tokens} ⚠️ Strict Limit ⚠️
-        **Compression Ratio**: {compression_ratio:.2f}
-
-        ## Key Information Extraction
-        1. **Decision Points** - Extract key decisions and conclusions
-        2. **Technical Details** - Retain important technical information and configurations
-        3. **Problem Solving** - Record encountered problems and solutions
-        4. **Progress Summary** - Summarize progress and achievements at each stage
-
-        ## Output Format
-
-        Please output the compressed section content as a concise summary that captures the key points, decisions, and outcomes from the dialogue history.
-
-        ## Original Section Content
-
-        ```
-        {content_to_compress}
-        ```
-
-        ## Execute Compression
-
-        **Important**: Output must be strictly controlled within {target_tokens} tokens, maintaining high information density and logical clarity.
-
-        Please start compression:"""
-
-        return prompt
-    
     def _compress_text_simple(self, content: str, target_modules: List[str], max_tokens: int, compression_ratio: float) -> str:
         """
-        Simplified version of text compression, mimicking core logic of compress_text
+        Simplified version of text compression, mimicking core logic of compress_text (discard)
         
         Args:
             content: Content to compress
