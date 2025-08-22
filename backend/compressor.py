@@ -14,7 +14,7 @@ class ContextCompressor:
     def __init__(self, 
                  api_key=None, 
                  base_url=None,
-                 model_name="gpt-4o-mini",
+                 model_name="gpt-4.1",
                  use_tf_idf=False,
                  use_history_compression=False,
                  **kwargs):
@@ -624,6 +624,7 @@ class ContextCompressor:
                 )
                 
                 compressed_history = response.choices[0].message.content.strip()
+                print(f"🗜 history compression result, from {content_to_compress_tokens} tokens to {self.count_tokens(compressed_history)} tokens")
                 compressed_items = [{"role": "system", "message": compressed_history}]
                 
             except Exception as e:

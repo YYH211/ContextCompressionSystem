@@ -29,31 +29,27 @@ class Prompt:
         ```xml
         <context>
             <BACKGROUND>
-                <!-- Knowledge base results compressed, system prompt preserved -->
-                <system_prompt><!-- Keep original system prompt unchanged --></system_prompt>
-                <task><!-- Preserve main task description --></task>
-                <knowledge><!-- Compressed key facts and concepts --></knowledge>
-                <external_knowledge><!-- Essential sources only --></external_knowledge>
+                <system_prompt></system_prompt>
+                <task></task>
+                <knowledge></knowledge>
+                <external_knowledge></external_knowledge>
             </BACKGROUND>
 
             <PLAN>
-                <!-- Plans organized by iteration, remove intermediate processes -->
                 <plan_iteration number="1">
-                    <steps><!-- Key steps only --></steps>
+                    <steps></steps>
                 </plan_iteration>
             </PLAN>
 
             <SUB_APP>
-                <!-- Summarize each agent's key contributions and results -->
                 <agent name="xxxx">
-                    <content><!-- Core findings, what was completed, results obtained --></content>
+                    <content></content>
                 </agent>
             </SUB_APP>
 
             <HISTORY>
-                <!-- Compress conversation, extract critical information -->
                 <entry role="system">
-                    <!-- Compressed conversation summary -->
+                    
                 </entry>
             </HISTORY>
         </context>
@@ -82,10 +78,15 @@ class Prompt:
         ## EXECUTION RULES
 
         1. **Token Priority**: Meeting ≤{target_tokens} tokens is MANDATORY
-        2. **XML Structure**: Must follow exact XML format shown above
-        3. **Compression Order**: Process priority sections more aggressively
-        4. **Information Density**: Be ruthlessly concise while preserving key information
-        5. **Complete Structure**: Include ALL four main sections in XML output
+        2. **XML Structure**: follow exact XML format shown above
+        3. **Section Handling**: 
+        - ONLY compress sections that exist in the source content
+        - If a section is not present in the source, keep its XML tag empty
+        - It is strictly forbidden to fabricate or supplement content for missing sections
+        4. **Compression Order**: Process priority sections more aggressively
+        5. **Information Density**: Be ruthlessly concise while preserving key information
+        6. **Output Consistency**: Always output the four main sections, but allow them to be empty
+
 
         ## SOURCE CONTENT
 

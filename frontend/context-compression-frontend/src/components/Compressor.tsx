@@ -736,7 +736,7 @@ const Compressor: React.FC<CompressorProps> = () => {
               </div>
             )}
             
-            <div className="bg-gray-800 rounded-lg p-5">
+            <div className="bg-gray-800 rounded-lg p-6">
               <h2 className="text-lg font-semibold mb-4 flex items-center">
                 <FileText className="mr-2 h-5 w-5" />
                 Real-Time XML Preview
